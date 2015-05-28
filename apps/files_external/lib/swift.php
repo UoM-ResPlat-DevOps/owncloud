@@ -85,6 +85,8 @@ class Swift extends \OC\Files\Storage\Common {
 
 	const SUBCONTAINER_FILE = '.subcontainers';
 
+	const LARGE_OBJECT_THRESHOLD = 4294967296;
+
 	/**
 	 * translate directory path to container name
 	 *
@@ -295,7 +297,15 @@ class Swift extends \OC\Files\Storage\Common {
 		}
 
 		try {
-			$this->getContainer()->dataObject()->setName($path)->delete();
+			$containerName = $this->getContainer()->getName();
+			$pathsToDelete = array(sprintf('/%s/%s', $containerName, $path));
+			$objects = $this->getContainer()->objectList(array(
+				'path' => $path."/segment/"
+			));
+			foreach ($objects as $object) {
+				$pathsToDelete[] = sprintf('/%s/%s', $containerName, $object->getName());
+			}
+			$this->getConnection()->bulkDelete($pathsToDelete);
 		} catch (ClientErrorResponseException $e) {
 			\OCP\Util::writeLog('files_external', $e->getMessage(), \OCP\Util::ERROR);
 			return false;
@@ -545,8 +555,16 @@ class Swift extends \OC\Files\Storage\Common {
 		if (!isset(self::$tmpFiles[$tmpFile])) {
 			return false;
 		}
-		$fileData = fopen($tmpFile, 'r');
-		$this->getContainer()->uploadObject(self::$tmpFiles[$tmpFile], $fileData);
+		if (filesize($tmpFile) < self::LARGE_OBJECT_THRESHOLD) {
+			$fileData = fopen($tmpFile, 'r');
+			$this->getContainer()->uploadObject(self::$tmpFiles[$tmpFile], $fileData);
+		} else {
+			$transfer = $this->getContainer()->setupObjectTransfer(array(
+				'name' => self::$tmpFiles[$tmpFile],
+				'path' => $tmpFile
+			));
+			$transfer->upload();
+		}
 		unlink($tmpFile);
 	}
 
