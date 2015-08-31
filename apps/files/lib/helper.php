@@ -44,7 +44,8 @@ class Helper {
 		// information about storage capacities
 		$storageInfo = \OC_Helper::getStorageInfo($dir);
 		$l = new \OC_L10N('files');
-		$maxUploadFileSize = \OCP\Util::maxUploadFilesize($dir, $storageInfo['free']);
+		// TODO: Properly handle unlimited upload sizes
+		$maxUploadFileSize = min(pow(2,64), \OCP\Util::maxUploadFilesize($dir, $storageInfo['free']));
 		$maxHumanFileSize = \OCP\Util::humanFileSize($maxUploadFileSize);
 		$maxHumanFileSize = $l->t('Upload (max. %s)', array($maxHumanFileSize));
 
